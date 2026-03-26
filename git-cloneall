@@ -1,0 +1,34 @@
+#!/bin/bash
+
+ORG="$1"
+PARALLEL="${2:-5}"
+
+if [ -z "$ORG" ]; then
+  echo "Usage: git-cloneall <org> [parallel]"
+  exit 1
+fi
+
+mkdir -p "$ORG"
+cd "$ORG" || exit
+
+gh repo list "$ORG" \
+  --limit 1000 \
+  --json name,url \
+  -q '.[] | "\(.name) \(.url).git"' | \
+while read -r name url; do
+  (
+    if [ -d "$name" ]; then
+      echo "Skipping $name"
+    else
+      echo "Cloning $name"
+      git clone "$url"
+    fi
+  ) &
+
+  while [ "$(jobs -r | wc -l)" -ge "$PARALLEL" ]; do
+    sleep 0.2
+  done
+done
+
+wait
+echo "done."
